@@ -43,3 +43,30 @@ CREATE POLICY user_isolation_policy ON users
 
 CREATE POLICY event_isolation_policy ON events
     FOR ALL USING (tenant_id = current_setting('app.current_tenant'));
+
+
+----UC 2 , 3 partition monthly and indexing-------------------------------
+
+-- Partition for April 2026
+CREATE TABLE events_y2026m04 PARTITION OF events
+    FOR VALUES FROM ('2026-04-01 00:00:00Z') TO ('2026-05-01 00:00:00Z');
+
+-- Partition for May 2026
+CREATE TABLE events_y2026m05 PARTITION OF events
+    FOR VALUES FROM ('2026-05-01 00:00:00Z') TO ('2026-06-01 00:00:00Z');
+
+
+-- Run this to show partition pruning
+EXPLAIN ANALYZE 
+SELECT * FROM events 
+WHERE event_time >= '2026-04-15' AND event_time < '2026-04-20';
+
+
+-- 1. Composite Index (Tenant + Time)
+CREATE INDEX idx_events_tenant_time ON events (tenant_id, event_time DESC);
+
+-- 2. Index on Event Name
+CREATE INDEX idx_events_name ON events (event_name);
+
+-- 3. GIN Index for JSONB properties
+CREATE INDEX idx_events_properties_gin ON events USING GIN (properties jsonb_path_ops);
